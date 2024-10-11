@@ -1397,7 +1397,7 @@ struct sub_request * find_write_sub_request(struct ssd_info * ssd, unsigned int 
 	*除了全动态分配方式，其他方式的请求已经分配到特定的channel，
 	*就只需要在channel上找出准备服务的子请求
 	***********************************************************/
-	else //不是完全动态分配
+	else
 	{
 		sub=ssd->channel_head[channel].subs_w_head;
 		while(sub!=NULL)

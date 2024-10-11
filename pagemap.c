@@ -1101,28 +1101,6 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
 	//******************************************
 	ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_block].free_page_num--;  //空闲页--，但也没说明写好了
 
-
-	// // 判断SB中空闲页个数，看该SB有没有写完
-	// int SB_freepage = 1;
-	// int SB_num = 0;
-	// // 如果这个块的空闲页为0了，开始判断是不是SB空闲页为0
-	// if(ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_block].free_page_num == 0){
-	// 	SB_freepage = 0;
-	// 	for(int i=0; i<ssd->parameter->channel_number; i++){
-	// 		SB_freepage += ssd->channel_head[i].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_block].free_page_num;
-	// 	}	
-	// }
-	// // 为0说明写完，空闲页为0
-    // if(SB_freepage == 0){
-	// 	// 然后判断SB的无效页个数
-	// 	SB_num = active_block+(chip*ssd->parameter->block_plane);
-	// 	// 如果无效页数量大于软阈值，放入队列判断
-	// 	if(ssd->superblock[SB_num].invalid_page_count>200){
-	// 		// 放入队列
-	// 	}
-	// }
-
-
 	if(ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_block].last_write_page>=ssd->parameter->page_block)
 	{
 		printf("error! the last write page larger than the number of pages per block!!\n");
@@ -1244,17 +1222,7 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
 	ssd->write_flash_count++;
 
 	if (ssd->parameter->active_write==0)  /*如果没有主动策略，只采用gc_hard_threshold，并且无法中断GC过程*/
-	{   
-		// 设置plane中的无效页到软阈值
-		if (ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].free_page(ssd->parameter->page_block*ssd->parameter->block_plane*ssd->parameter->gc_threshold))  
-		{
-			// 再挑选superblock中无效页到达软阈值的SB放入队列
-			if(blk_Inqueue(ssd, channel, chip, die, plane) == ERROR){
-				printf("Error: no blk\n");
-				getchar();
-			}
-		}
-		// 判断该plane的freepage有没有达到阈值                                                                                         
+	{                                                                                            
 		if (ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].free_page<(ssd->parameter->page_block*ssd->parameter->block_plane*ssd->parameter->gc_hard_threshold))  //如果plane中的free_page有效页的数目少于gc_hard_threshold所设定的阈值就产生gc操作
 		{
 			int blk_id = -1;
@@ -1311,7 +1279,7 @@ int find_superblock_change(struct ssd_info *ssd,unsigned int channel,unsigned in
 }
 
 Status get_blk(struct ssd_info *ssd, int channel, int chip, int die, int plane, int *blk_id){
-	int i;
+	 int i;
     int block = -1;
     int active_block = 0; // 默认活跃块号
     unsigned int invalid_page = 0;
@@ -1323,7 +1291,6 @@ Status get_blk(struct ssd_info *ssd, int channel, int chip, int die, int plane, 
 		return ERROR;
 	}
 	active_block=ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].active_block;
-	// 超级块起始和结束
 	int start_superblock = (chip == 0) ? 0 : ssd->parameter->block_plane;
     int end_superblock = (chip == 0) ? ssd->parameter->block_plane : ssd->parameter->block_plane * ssd->parameter->chip_channel[0];
 	//遍历的是超级块0-ssd->parameter->block_plane
@@ -1348,7 +1315,7 @@ Status get_blk(struct ssd_info *ssd, int channel, int chip, int die, int plane, 
 		   continue;
 		}
 		superblock_invalid_page_num = ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[ssd->superblock[i].super_blk_loc[channel].blk].invalid_page_num;
-		if((active_block!=i)&&(superblock_invalid_page_num>invalid_page)) // 不是忙碌快，而且无效页最多
+		if((active_block!=i)&&(superblock_invalid_page_num>invalid_page))
 		{
 			invalid_page=superblock_invalid_page_num;
 			block=i;
@@ -1365,7 +1332,7 @@ Status get_blk(struct ssd_info *ssd, int channel, int chip, int die, int plane, 
 // 当无效页到达软阈值的时候，选择超级块软阈值放入队列
 Status blk_Inqueue(struct ssd_info *ssd, int channel, int chip, int die, int plane){
 	int i;
-    int block = -1;
+    int block = 0;
     int active_block = 0; // 默认活跃块号
     unsigned int invalid_page = 200;
     unsigned int superblock_invalid_page_num = 0;
@@ -1402,11 +1369,14 @@ Status blk_Inqueue(struct ssd_info *ssd, int channel, int chip, int die, int pla
 		}
 		if((active_block!=i)&&(ssd->superblock[i].invalid_page_count>invalid_page)) // 不是忙碌快，而且无效页最多
 		{
-			// 放入队列
+			// block自增，代表选中的块数量
+			block++;
+			// 判断冷热
+
 			
 		}
 	   }		
-	if (block == -1)
+	if (block == 0)
 	{
 		return ERROR;
 	}
@@ -1966,7 +1936,7 @@ int gc_direct_erase(struct ssd_info *ssd,unsigned int channel,unsigned int chip,
 	*并置muilt_plane_flag为TRUE
 	*********************************************************************************************************/
 	if((ssd->parameter->advanced_commands&AD_TWOPLANE)==AD_TWOPLANE)
-	{ 
+	{
 		for(lv_plane=0;lv_plane<ssd->parameter->plane_die;lv_plane++)
 		{
 			direct_erase_node2=ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].erase_node;     //这里的plane应该改成lv_plane吧？？？
@@ -2053,7 +2023,7 @@ int gc_direct_erase(struct ssd_info *ssd,unsigned int channel,unsigned int chip,
 //只执行normal模式
 int gc_direct_fast_erase(struct ssd_info *ssd,unsigned int channel,unsigned int chip,unsigned int die,unsigned int plane)
 {
-	unsigned int lv_die=0,lv_plane=0;  /*为避免重名而使用的局部变量 Local variables*/
+	unsigned int lv_die=0,lv_plane=0;                                                           /*为避免重名而使用的局部变量 Local variables*/
 	unsigned int interleaver_flag=FALSE,muilt_plane_flag=FALSE;
 	unsigned int normal_erase_flag=TRUE;
 

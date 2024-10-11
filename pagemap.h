@@ -53,7 +53,7 @@ int move_page(struct ssd_info * ssd, struct local *location,unsigned int * trans
 int gc_for_channel(struct ssd_info *ssd, unsigned int channel);
 int delete_gc_node(struct ssd_info *ssd, unsigned int channel,struct gc_operation *gc_node);
 Status dr_for_channel(struct ssd_info *ssd, unsigned int channel);
-
+Status blk_Inqueue(struct ssd_info *ssd, int channel, int chip, int die, int plane);
 
 #endif
 

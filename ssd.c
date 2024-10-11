@@ -1835,13 +1835,12 @@ struct ssd_info *no_buffer_distribute(struct ssd_info *ssd)
 	req=ssd->request_tail;
 	lsn=req->lsn;//lsn是起始地址
 	lpn=req->lsn/ssd->parameter->subpage_page;
-	//逻辑页号存放在哪个subpage，subpage的页数
 	last_lpn=(req->lsn+req->size-1)/ssd->parameter->subpage_page;
 	first_lpn=req->lsn/ssd->parameter->subpage_page;
 
 	if(req->operation==READ)
 	{
-		while(lpn<=last_lpn)//为每一个逻辑页创建子请求
+		while(lpn<=last_lpn)
 		{
 			sub_state=(ssd->dram->map->map_entry[lpn].state&0x7fffffff);
 			sub_size=size(sub_state); //子请求大小（即子页数目）
