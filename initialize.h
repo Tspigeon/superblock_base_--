@@ -317,6 +317,7 @@ struct channel_info{
 	struct sub_request *subs_w_head;     //channel上的写请求队列头，先服务处于队列头的子请求
 	struct sub_request *subs_w_tail;     //channel上的写请求队列尾，新加进来的子请求加到队尾
 	struct gc_operation *gc_command;     //记录需要产生gc的位置
+	struct gc_operation *gc_command_tail;	//记录gc链表的尾指针
 	struct chip_info *chip_head;
 };//可以根据ssd_info中的系统时间与该channel中的下一状态预计时间作比较，可以得到该channel的新的当前状态
 
@@ -364,6 +365,7 @@ struct superblock_info{
 	unsigned int superblock_id;
 	struct superblock_channel *super_blk_loc;
     unsigned int invalid_page_count;
+	unsigned int gc_count; // 记录已经gc的block的数量
 };
 
 
