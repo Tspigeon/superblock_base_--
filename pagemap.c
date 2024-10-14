@@ -1232,14 +1232,14 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
 			int blk_id = -1;
 			// 原函数为选出无效页最多的块，现在要选出gc最多的块
 			if (get_GC_count_max(ssd, channel, chip, die, plane, &blk_id) == ERROR) {
-				printf("Error: no blk\n");
+				printf("Error: no blk for gc_count_max\n");
 				getchar();
 			}
 			for(int i = 0;i < ssd->parameter->channel_number;i++)
 			{
 				int blk_number = -1;
 				// 因为传的是超级块号，所以得返回没有gc的块号
-				blk_number = ssd->superblock[block].super_blk_loc[i].blk;
+				blk_number = ssd->superblock[blk_id].super_blk_loc[i].blk;
 				// 判断这个块有没有被gc	  
 				if(ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[blk_number].free_page_num > 0)
 				{
@@ -1254,14 +1254,14 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
 				gc_node->chip=chip;
 				gc_node->die=die;
 				gc_node->plane=plane;
-				gc_node->block=gc_change_block;
+				gc_node->block=blk_number;
 				gc_node->page=0;
 				gc_node->state=GC_WAIT;
 				gc_node->priority=GC_UNINTERRUPT;
 				gc_node->next_node=ssd->channel_head[i].gc_command;
 				ssd->channel_head[i].gc_command=gc_node;    //接在这个channel的gc链表后面，应该是链表的头插操作
 				ssd->gc_request++;
-				if(ssd->channel_head[i].chip_head[chip].die_head[die].plane_head[plane].blk_head[gc_change_block].free_page_num > 0 )
+				if(ssd->channel_head[i].chip_head[chip].die_head[die].plane_head[plane].blk_head[blk_number].free_page_num > 0 )
 				{
 					printf("---------------\n");
 					while (1){}	
@@ -1270,51 +1270,59 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
 		}
 
 		// 如果硬阈值没有满足，则测试软阈值
-		if (ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].free_page<(ssd->parameter->page_block*ssd->parameter->block_plane*ssd->parameter->gc_threshold))  //如果plane中的free_page有效页的数目少于gc_threshold所设定的阈值就产生gc操作
+		if (ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].free_page<(ssd->parameter->page_block*ssd->parameter->block_plane*ssd->parameter->gc_threshold) && ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].free_page>(ssd->parameter->page_block*ssd->parameter->block_plane*ssd->parameter->gc_hard_threshold))  //如果plane中的free_page有效页的数目少于gc_threshold所设定的阈值就产生gc操作
 		{
 			int blk_id = -1;
 			if (blk_Inqueue(ssd, channel, chip, die, plane, &blk_id) == ERROR) {
-				printf("Error: no blk\n");
-				getchar();
+				// printf("Error: no blk for blkInqueue\n");
+				// getchar();
+				return ssd;
 			}
 			// 说明有软阈值块
 			for(int i = 0;i < ssd->parameter->channel_number;i++)
 			{
 				int gc_change_block = -1;
 				//因为传的是超级块号，所以得返回具体GC块号
-				gc_change_block = find_superblock_change(ssd,i,chip,die,plane,&blk_id);	  
+				gc_change_block = find_superblock_change(ssd,i,chip,die,plane,&blk_id);	
+
 				if(gc_change_block == ERROR)
 				{
 					printf("Error: no find blk\n");
 				    getchar();
 				}
-      
-				gc_node=(struct gc_operation *)malloc(sizeof(struct gc_operation));
-				alloc_assert(gc_node,"gc_node");
-				memset(gc_node,0, sizeof(struct gc_operation));
 
-				gc_node->next_node=NULL;
-				gc_node->chip=chip;
-				gc_node->die=die;
-				gc_node->plane=plane;
-				gc_node->block=gc_change_block;
-				gc_node->page=0;
-				gc_node->state=GC_WAIT;
-				gc_node->priority=GC_UNINTERRUPT;
-				// 软阈值这里进行尾插
-				if(ssd->channel_head[i].gc_command == NULL){
-					ssd->channel_head[i].gc_command = gc_node;
-					ssd->channel_head[i].gc_command_tail = gc_node;
-				}else{
-					ssd->channel_head[i].gc_command_tail->next = gc_node;
-					ssd->channel_head[i].gc_command_tail = gc_node;
+				// 冷热块判断，为冷块才放入gc队列
+				// 这里模拟判断一下，放入1/4的块进来
+				if(gc_change_block%4 == 0){
+					gc_node=(struct gc_operation *)malloc(sizeof(struct gc_operation));
+					alloc_assert(gc_node,"gc_node");
+					memset(gc_node,0, sizeof(struct gc_operation));
+
+					gc_node->next_node=NULL;
+					gc_node->chip=chip;
+					gc_node->die=die;
+					gc_node->plane=plane;
+					gc_node->block=gc_change_block;
+					gc_node->page=0;
+					gc_node->state=GC_WAIT;
+					gc_node->priority=GC_UNINTERRUPT;
+					// 软阈值这里进行尾插
+					if(ssd->channel_head[i].gc_command == NULL){
+						ssd->channel_head[i].gc_command = gc_node;
+						ssd->channel_head[i].gc_command_tail = gc_node;
+					}else{
+						ssd->channel_head[i].gc_command_tail->next_node = gc_node;
+						ssd->channel_head[i].gc_command_tail = gc_node;
+					}
+					ssd->gc_request++;
+					// if(ssd->channel_head[i].chip_head[chip].die_head[die].plane_head[plane].blk_head[gc_change_block].free_page_num > 0 )
+					// {
+					// 	printf("---------------\n");
+					// 	while (1){}	
+					// }
 				}
-				ssd->gc_request++;
-				// if(ssd->channel_head[i].chip_head[chip].die_head[die].plane_head[plane].blk_head[gc_change_block].free_page_num > 0 )
-				// {
-				// 	printf("---------------\n");
-				// 	while (1){}	
-				// }
+
+
 			}
 		}
 	}
@@ -1391,7 +1399,7 @@ Status get_GC_count_max(struct ssd_info *ssd, int channel, int chip, int die, in
 	int i;
     int block = -1;
     int active_block = 0; // 默认活跃块号
-    unsigned int gc_count_max = 0; // 当前最多的gc_count
+    unsigned int gc_count_max = -1; // 当前最多的gc_count
     unsigned int superblock_invalid_page_num = 0;
 
 	 if(find_active_block(ssd,channel,chip,die,plane)!=SUCCESS)     /*获取活跃块*/
@@ -1424,7 +1432,7 @@ Status get_GC_count_max(struct ssd_info *ssd, int channel, int chip, int die, in
 		   continue;
 		}
 		// superblock_invalid_page_num = ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[ssd->superblock[i].super_blk_loc[channel].blk].invalid_page_num;
-		if((active_block!=i)&&(ssd->superblock[i].gc_count > gc_count_max))
+		if((active_block!=i)&&(ssd->superblock[i].gc_count > gc_count_max)&&(ssd->superblock[i].gc_count != ssd->parameter->channel_number))
 		{
 			gc_count_max=ssd->superblock[i].gc_count;
 			block=i;
@@ -1439,7 +1447,7 @@ Status get_GC_count_max(struct ssd_info *ssd, int channel, int chip, int die, in
 }
 
 // 当无效页到达软阈值的时候，选择超级块软阈值放入队列
-Status blk_Inqueue(struct ssd_info *ssd, int channel, int chip, int die, int plane){
+Status blk_Inqueue(struct ssd_info *ssd, int channel, int chip, int die, int plane, int *blk_id){
 	int i;
     int block = -1;
     int active_block = 0; // 默认活跃块号
@@ -2912,6 +2920,7 @@ int delete_gc_node(struct ssd_info *ssd, unsigned int channel,struct gc_operatio
 	if (gc_node==ssd->channel_head[channel].gc_command)
 	{
 		ssd->channel_head[channel].gc_command=gc_node->next_node;
+		ssd->channel_head[channel].gc_command_tail = gc_node->next_node;
 	}
 	else
 	{
@@ -3009,7 +3018,10 @@ Status gc_for_channel(struct ssd_info *ssd, unsigned int channel)
 		{
 			delete_gc_node(ssd,channel,gc_node);
 		}	
-		// gc完成，对应SB的gc_count字段自增
+		// gc完成，对应SB的gc_count字段自增，但是如果count等于8，说明开启了新一轮gc
+		if(ssd->superblock[block+(chip*ssd->parameter->block_plane)].gc_count == 8){
+			ssd->superblock[block+(chip*ssd->parameter->block_plane)].gc_count = 0;
+		}
 		ssd->superblock[block+(chip*ssd->parameter->block_plane)].gc_count++;
 		return SUCCESS;
 	}
