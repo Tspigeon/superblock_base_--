@@ -293,6 +293,8 @@ struct ssd_info{
 	struct event_node *event;            //事件队列，每产生一个新的事件，按照时间顺序加到这个队列，在simulate函数最后，根据这个队列队首的时间，确定时间
 	struct channel_info *channel_head;   //指向channel结构体数组的首地址
 	struct superblock_info *superblock;
+	int hard_count; //进入硬阈值的次数
+	int cold_choose; // 冷块被选中的次数
 };//主要成员：①指向channel②指向dram③current_time系统当前时间④request_queue请求队列队首指针⑤request_tail请求队列队尾指针⑥统计：统计一些信息，如闪存写入次数，读取次数，外部请求到达个数
 
 
@@ -366,6 +368,7 @@ struct superblock_info{
 	struct superblock_channel *super_blk_loc;
     unsigned int invalid_page_count;
 	unsigned int gc_count; // 记录已经gc的block的数量
+	unsigned int superblock_erase; //超级块的擦除次数
 };
 
 

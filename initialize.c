@@ -161,7 +161,8 @@ struct ssd_info *initiation(struct ssd_info *ssd)
 	ssd->newest_req_with_lsb_l = 0;
 	ssd->sub_request_success = 0;
 	ssd->sub_request_all = 0;
-
+	ssd->hard_count = 0; // 初始化硬阈值统计
+	ssd->cold_choose = 0; // 初始化冷块选择统计
 	for(i=0;i<10;i++){
 		ssd->last_ten_write_lat[i]=0;
 		}

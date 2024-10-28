@@ -452,7 +452,7 @@ int get_lsn(struct ssd_info *ssd)
 	if(ssd->tracefile == NULL )      
 	{
 		printf("the trace file can't open123.\n");
-		return NULL;
+		return (Status) NULL;
 	}
 	
 	while(fgets(buffer_request,200,ssd->tracefile))
@@ -1491,6 +1491,8 @@ void statistic_output(struct ssd_info *ssd)
 	// fprintf(ssd->statisticfile,"buffer write hits: %13d\n",ssd->dram->buffer->write_hit);
 	// fprintf(ssd->statisticfile,"buffer write miss: %13d\n",ssd->dram->buffer->write_miss_hit);
 	fprintf(ssd->statisticfile,"erase: %13d\n",erase);
+	fprintf(ssd->statisticfile,"enter hard_th count: %d\n", ssd->hard_count);
+	fprintf(ssd->statisticfile,"soft_threshold cold count: %d\n", ssd->cold_choose);
 	// fprintf(ssd->statisticfile,"sub_request_all: %13d, sub_request_success: %13d\n", ssd->sub_request_all, ssd->sub_request_success);
 	fflush(ssd->statisticfile);
 
