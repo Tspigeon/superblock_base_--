@@ -55,6 +55,7 @@ int delete_gc_node(struct ssd_info *ssd, unsigned int channel,struct gc_operatio
 Status dr_for_channel(struct ssd_info *ssd, unsigned int channel);
 Status blk_Inqueue(struct ssd_info *ssd, int channel, int chip, int die, int plane, int *blk_id);
 Status get_GC_count_max(struct ssd_info *ssd, int channel, int chip, int die, int plane, int *blk_id);
+int uninterrupt_gc_super_soft(struct ssd_info *ssd,unsigned int channel,unsigned int chip,unsigned int die,unsigned int plane, int blk_id);
 #endif
 
 

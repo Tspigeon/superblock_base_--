@@ -1242,7 +1242,7 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
 				// 因为传的是超级块号，所以得返回没有gc的块号
 				blk_number = ssd->superblock[blk_id].super_blk_loc[i].blk;
 				// 判断这个块有没有被gc	  
-				if(ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[blk_number].free_page_num > 0)
+				if(ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[blk_number].invalid_page_num == ssd->parameter->page_block)
 				{
 					printf("find %d already gc\n", blk_number);
 				    continue;
@@ -1259,6 +1259,10 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
 				gc_node->page=0;
 				gc_node->state=GC_WAIT;
 				gc_node->priority=GC_UNINTERRUPT;
+
+				// 删除之前放入的gc节点
+				delete_gc_node(ssd, i, gc_node);
+				
 				gc_node->next_node=ssd->channel_head[i].gc_command;
 				ssd->channel_head[i].gc_command=gc_node;    //接在这个channel的gc链表后面，应该是链表的头插操作
 				ssd->gc_request++;
@@ -1306,10 +1310,10 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
 				gc_node->state=GC_WAIT;
 				gc_node->priority=GC_UNINTERRUPT;
 				// 软阈值这里进行尾插
-				if(ssd->channel_head[i].gc_command == NULL){
+				if(ssd->channel_head[i].gc_command == NULL || ssd->channel_head[i].gc_command_tail == NULL){
 					ssd->channel_head[i].gc_command = gc_node;
 					ssd->channel_head[i].gc_command_tail = gc_node;
-				}else{
+				}else{ 
 					ssd->channel_head[i].gc_command_tail->next_node = gc_node;
 					ssd->channel_head[i].gc_command_tail = gc_node;
 				}
@@ -1434,6 +1438,10 @@ Status get_GC_count_max(struct ssd_info *ssd, int channel, int chip, int die, in
 			block=i;
 		}
 	}		
+	for(int i = 0;i < ssd->parameter->channel_number; i++)
+	{
+		ssd->channel_head[i].chip_head[chip].die_head[die].plane_head[plane].blk_head[ssd->superblock[block].super_blk_loc[i].blk].super_flag = 1;
+	}
 	*blk_id = block;
 	if (block == -1)
 	{
@@ -2552,7 +2560,7 @@ int uninterrupt_gc_super(struct ssd_info *ssd,unsigned int channel,unsigned int 
 					location=NULL;
 				}	
 	}
-	erase_operation(ssd,channel ,chip , die,plane ,block);	    /*执行完move_page操作后，就立即执行block的擦除操作*/
+	erase_operation(ssd, channel, chip, die, plane, block);	    /*执行完move_page操作后，就立即执行block的擦除操作*/
 	ssd->channel_head[channel].current_state=CHANNEL_GC;
 	ssd->channel_head[channel].current_time=ssd->current_time;
 	ssd->channel_head[channel].next_state=CHANNEL_IDLE;
@@ -2569,7 +2577,7 @@ int uninterrupt_gc_super(struct ssd_info *ssd,unsigned int channel,unsigned int 
 		{
 
 			ssd->channel_head[channel].next_state_predict_time=ssd->current_time+page_move_count*(7*ssd->parameter->time_characteristics.tWC+ssd->parameter->time_characteristics.tR+7*ssd->parameter->time_characteristics.tWC+ssd->parameter->time_characteristics.tPROG);
-			ssd->channel_head[channel].chip_head[chip].next_state_predict_time=ssd->channel_head[channel].next_state_predict_time+ssd->parameter->time_characteristics.tBERS;
+			ssd->channel_head[channel].chip_head[chip].next_state_predict_time=ssd->channel_head[channel].next_state_predict_time+ssd->parameter->time_characteristics.tBERS; // 擦除时间去掉
 		}
 	}
 	else
@@ -2578,6 +2586,79 @@ int uninterrupt_gc_super(struct ssd_info *ssd,unsigned int channel,unsigned int 
 		// ssd->channel_head[channel].chip_head[chip].next_state_predict_time=ssd->channel_head[channel].next_state_predict_time+ssd->parameter->time_characteristics.tBERS;	
 		ssd->channel_head[channel].next_state_predict_time=ssd->current_time+page_move_count* (7*ssd->parameter->time_characteristics.tWC+ssd->parameter->time_characteristics.tR)+transfer_size*SECTOR*ssd->parameter->time_characteristics.tRC;
 		ssd->channel_head[channel].chip_head[chip].next_state_predict_time=ssd->channel_head[channel].next_state_predict_time+ssd->parameter->time_characteristics.tBERS;	
+	}
+	return 1;
+}
+
+int uninterrupt_gc_super_soft(struct ssd_info *ssd,unsigned int channel,unsigned int chip,unsigned int die,unsigned int plane, int blk_id)
+{
+	unsigned int free_page,i,block;
+	unsigned int page_move_count = 0,transfer_size = 0;
+	struct local * location = NULL;
+   //***********************************************
+    block = blk_id;
+    ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].fast_erase = TRUE;
+	// //***********************************************
+	free_page=0;
+	// unsigned int m = 0;
+		for(i=0;i<ssd->parameter->page_block;i++)/*逐个检查每个page，如果有有效数据的page需要移动到其他地方存储*/
+		{
+			if ((ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].page_head[i].free_state&PG_SUB)==0x0000000f)
+			{
+				free_page++;
+			}
+			if(free_page!=0)
+			{
+				//printf("\ntoo much free page. \t %d\t .%d\t%d\t%d\t%d\t\n",free_page,channel,chip,die,plane);
+			}
+			//超级块的有效页迁移
+				if(ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].page_head[i].valid_state>0) /*该页是有效页，需要copyback操作*/
+				{
+					location=(struct local * )malloc(sizeof(struct local ));
+					alloc_assert(location,"location");
+					memset(location,0, sizeof(struct local));
+                    // valid_state = ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].page_head[i].valid_state;
+					location->channel=channel;
+					location->chip=chip;
+					location->die=die;
+					location->plane=plane;
+					location->block=block;
+					location->page=i;
+					move_page(ssd, location, &transfer_size);  /*真实的move_page操作*/
+					page_move_count++;
+					// m = location->channel;
+					// ssd->channel_head[m].move_count++;
+					// ssd->channel_head[m].req_transfer_size += size(valid_state);
+					free(location);
+					location=NULL;
+				}	
+	}
+	// page_move执行完之后不立即进行擦除
+	ssd->channel_head[channel].current_state=CHANNEL_GC;
+	ssd->channel_head[channel].current_time=ssd->current_time;
+	ssd->channel_head[channel].next_state=CHANNEL_IDLE;
+	ssd->channel_head[channel].chip_head[chip].current_state=CHIP_ERASE_BUSY;
+	ssd->channel_head[channel].chip_head[chip].current_time=ssd->current_time;
+	ssd->channel_head[channel].chip_head[chip].next_state=CHIP_IDLE;
+	/***************************************************************
+	*在可执行COPYBACK高级命令与不可执行COPYBACK高级命令这两种情况下，
+	*channel下个状态时间的计算，以及chip下个状态时间的计算
+	***************************************************************/
+	if ((ssd->parameter->advanced_commands&AD_COPYBACK)==AD_COPYBACK)
+	{
+		if (ssd->parameter->greed_CB_ad==1)
+		{
+
+			ssd->channel_head[channel].next_state_predict_time=ssd->current_time+page_move_count*(7*ssd->parameter->time_characteristics.tWC+ssd->parameter->time_characteristics.tR+7*ssd->parameter->time_characteristics.tWC+ssd->parameter->time_characteristics.tPROG);
+			ssd->channel_head[channel].chip_head[chip].next_state_predict_time=ssd->channel_head[channel].next_state_predict_time; // 擦除时间去掉
+		}
+	}
+	else
+	{
+		// ssd->channel_head[channel].next_state_predict_time=ssd->current_time+page_move_count* (7*ssd->parameter->time_characteristics.tWC+ssd->parameter->time_characteristics.tR+7*ssd->parameter->time_characteristics.tWC+ssd->parameter->time_characteristics.tPROG)+transfer_size*SECTOR*(ssd->parameter->time_characteristics.tWC+ssd->parameter->time_characteristics.tRC);
+		// ssd->channel_head[channel].chip_head[chip].next_state_predict_time=ssd->channel_head[channel].next_state_predict_time+ssd->parameter->time_characteristics.tBERS;	
+		ssd->channel_head[channel].next_state_predict_time=ssd->current_time+page_move_count* (7*ssd->parameter->time_characteristics.tWC+ssd->parameter->time_characteristics.tR)+transfer_size*SECTOR*ssd->parameter->time_characteristics.tRC;
+		ssd->channel_head[channel].chip_head[chip].next_state_predict_time=ssd->channel_head[channel].next_state_predict_time;	
 	}
 	return 1;
 }
@@ -2918,31 +2999,36 @@ int interrupt_gc(struct ssd_info *ssd,unsigned int channel,unsigned int chip,uns
 **************************************************************/
 int delete_gc_node(struct ssd_info *ssd, unsigned int channel,struct gc_operation *gc_node)
 {
+	int flag = 1;
 	struct gc_operation *gc_pre=NULL;
 	if(gc_node==NULL)
 	{
 		return ERROR;
 	}
 	// 如果是channel gc队列的头结点
-	if (gc_node==ssd->channel_head[channel].gc_command)
+	if (gc_node==ssd->channel_head[channel].gc_command && gc_node->next_node != NULL)
 	{
-		ssd->channel_head[channel].gc_command= gc_node->next_node;
+		ssd->channel_head[channel].gc_command = gc_node->next_node;
+		flag = 0;
 		// ssd->channel_head[channel].gc_command_tail = gc_node->next_node;
-	}else if(gc_node == ssd->channel_head[channel].gc_command_tail){ // 最后一个节点的删除
-		ssd->channel_head[channel].gc_command= NULL;
-		ssd->channel_head[channel].gc_command_tail = NULL;
-	}else
-	{
+	}else if(gc_node->next_node == NULL){ // 最后一个节点的删除
+		ssd->channel_head[channel].gc_command = ssd->channel_head[channel].gc_command_tail = NULL;
+		flag = 0;
+	}else{
 		gc_pre=ssd->channel_head[channel].gc_command;
 		while (gc_pre->next_node!=NULL)
 		{
 			if (gc_pre->next_node==gc_node)
 			{
+				flag = 0;
 				gc_pre->next_node=gc_node->next_node;
 				break;
 			}
 			gc_pre=gc_pre->next_node;
 		}
+	}
+	if(flag == 1){
+		return FAILURE;
 	}
 	free(gc_node);
 	gc_node=NULL;
@@ -3017,7 +3103,19 @@ Status gc_for_channel(struct ssd_info *ssd, unsigned int channel)
 		if (flag_direct_erase!=SUCCESS)
 		{
 			// flag_gc=uninterrupt_gc(ssd,channel,chip,die,plane);  
-			flag_gc=uninterrupt_gc_super(ssd,channel,chip,die,plane,block);    /*当一个完整的gc操作完成时（已经擦除一个块，回收了一定数量的flash空间），返回1，将channel上相应的gc操作请求节点删除*/
+			// flag_gc=uninterrupt_gc_super(ssd,channel,chip,die,plane,block);    /*当一个完整的gc操作完成时（已经擦除一个块，回收了一定数量的flash空间），返回1，将channel上相应的gc操作请求节点删除*/
+			flag_gc=uninterrupt_gc_super_soft(ssd,channel,chip,die,plane,block); //不擦除
+
+			ssd->superblock[block+(chip*ssd->parameter->block_plane)].gc_count++;	
+			// gc完成，对应SB的gc_count字段自增，但是如果count等于8，说明开启了新一轮gc
+			if(ssd->superblock[block+(chip*ssd->parameter->block_plane)].gc_count == 8){
+				ssd->superblock[block+(chip*ssd->parameter->block_plane)].gc_count = 0;
+				// 然后一起擦除
+				for(int i=0; i<ssd->parameter->channel_number; i++){
+					erase_operation(ssd, i, chip, die, plane, block);
+				}
+			}
+
 			if (flag_gc==1)
 			{
 				delete_gc_node(ssd,channel,gc_node);
@@ -3026,12 +3124,7 @@ Status gc_for_channel(struct ssd_info *ssd, unsigned int channel)
 		else
 		{
 			delete_gc_node(ssd,channel,gc_node);
-		}	
-		// gc完成，对应SB的gc_count字段自增，但是如果count等于8，说明开启了新一轮gc
-		if(ssd->superblock[block+(chip*ssd->parameter->block_plane)].gc_count == 8){
-			ssd->superblock[block+(chip*ssd->parameter->block_plane)].gc_count = 0;
 		}
-		ssd->superblock[block+(chip*ssd->parameter->block_plane)].gc_count++;
 		return SUCCESS;
 	}
 	/*******************************************************************************
