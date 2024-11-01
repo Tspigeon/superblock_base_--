@@ -335,6 +335,7 @@ struct blk_info * initialize_block(struct blk_info * p_block,struct parameter_va
 	p_block->last_write_msb = -1;
 	p_block->fast_erase = FALSE;
 	p_block->dr_state = DR_STATE_NULL;
+	p_block->SB_gc_flag = 0; //初始化为没有page_move
 	//================================================
 
 	p_block->page_head = (struct page_info *)malloc(parameter->page_block * sizeof(struct page_info));

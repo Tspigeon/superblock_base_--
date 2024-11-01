@@ -413,6 +413,7 @@ struct blk_info{
 	int fast_erase;
 	unsigned int fast_gc_count;
 	unsigned int dr_state;
+	int SB_gc_flag;	//标志这个block有没有被提前page_move，没有为0，有为1
 	//=====================================================
 };
 

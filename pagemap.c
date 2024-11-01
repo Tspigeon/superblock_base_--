@@ -1103,7 +1103,7 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
 
 	if(ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_block].last_write_page>=ssd->parameter->page_block)
 	{
-		printf("error! the last write page larger than the number of pages per block!!\n");
+		printf("error! the last write page larger than the number of pages per block!! %d \n", ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_block].last_write_page);
 		while(1){}
 	}
 
@@ -1242,7 +1242,7 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
 				// 因为传的是超级块号，所以得返回没有gc的块号
 				blk_number = ssd->superblock[blk_id].super_blk_loc[i].blk;
 				// 判断这个块有没有被gc	  
-				if(ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[blk_number].invalid_page_num == ssd->parameter->page_block)
+				if(ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[blk_number].SB_gc_flag == 1)
 				{
 					printf("find %d already gc\n", blk_number);
 				    continue;
@@ -1489,16 +1489,19 @@ Status blk_Inqueue(struct ssd_info *ssd, int channel, int chip, int die, int pla
 		{
 		   continue;
 		}
-		if((active_block!=i)&&(ssd->superblock[i].invalid_page_count>invalid_page)) // 不是忙碌快，而且无效页超过阈值
+		if((active_block!=i)&&(ssd->superblock[i].invalid_page_count > ssd->parameter->page_block*ssd->parameter->channel_number*ssd->parameter->gc_hard_threshold)) // 不是忙碌快，而且无效页超过阈值
 		{
 			// 判断冷热
-			if(ssd->superblock[i].superblock_erase < 20){
-				// 选择block
+			// if(ssd->superblock[i].superblock_erase < 20){
+			// 选择block, 防止重复被选中
+			if(ssd->superblock[i].gc_count == 0){
 				*blk_id = i;
 				block = i;
 				ssd->cold_choose++;
 				return SUCCESS;
 			}
+
+			// }
 			// if(i%4 == 0){
 			// 	*blk_id = i;
 			// 	ssd->cold_choose++;
@@ -2634,6 +2637,7 @@ int uninterrupt_gc_super_soft(struct ssd_info *ssd,unsigned int channel,unsigned
 				}	
 	}
 	// page_move执行完之后不立即进行擦除
+	ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].fast_erase = FALSE;
 	ssd->channel_head[channel].current_state=CHANNEL_GC;
 	ssd->channel_head[channel].current_time=ssd->current_time;
 	ssd->channel_head[channel].next_state=CHANNEL_IDLE;
@@ -3106,12 +3110,16 @@ Status gc_for_channel(struct ssd_info *ssd, unsigned int channel)
 			// flag_gc=uninterrupt_gc_super(ssd,channel,chip,die,plane,block);    /*当一个完整的gc操作完成时（已经擦除一个块，回收了一定数量的flash空间），返回1，将channel上相应的gc操作请求节点删除*/
 			flag_gc=uninterrupt_gc_super_soft(ssd,channel,chip,die,plane,block); //不擦除
 
+			// 将小块的page_move标志位置为1，代表被page_move了
+			ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].SB_gc_flag = 1;
 			ssd->superblock[block+(chip*ssd->parameter->block_plane)].gc_count++;	
 			// gc完成，对应SB的gc_count字段自增，但是如果count等于8，说明开启了新一轮gc
 			if(ssd->superblock[block+(chip*ssd->parameter->block_plane)].gc_count == 8){
 				ssd->superblock[block+(chip*ssd->parameter->block_plane)].gc_count = 0;
 				// 然后一起擦除
 				for(int i=0; i<ssd->parameter->channel_number; i++){
+					// ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].fast_erase = TRUE;
+					ssd->channel_head[i].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].SB_gc_flag = 0;
 					erase_operation(ssd, i, chip, die, plane, block);
 				}
 			}
