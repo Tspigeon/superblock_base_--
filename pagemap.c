@@ -1103,6 +1103,10 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
 
 	if(ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_block].last_write_page>=ssd->parameter->page_block)
 	{
+		printf("%d \n", ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_block].fast_erase);
+		printf("%d \n", ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_block+1].fast_erase);
+		printf("%d \n", ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_block].free_page_num);
+		printf("%d \n", ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_block+1].free_page_num);
 		printf("error! the last write page larger than the number of pages per block!! %d \n", ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_block].last_write_page);
 		while(1){}
 	}
@@ -1785,6 +1789,9 @@ Status erase_operation(struct ssd_info * ssd,unsigned int channel ,unsigned int 
 	ssd->free_lsb_count-=origin_free_lsb_num;
 	ssd->free_csb_count-=origin_free_csb_num;
 	ssd->free_msb_count-=origin_free_msb_num;
+
+	//添加擦除时间
+	ssd->channel_head[channel].chip_head[chip].next_state_predict_time = ssd->channel_head[channel].next_state_predict_time + ssd->parameter->time_characteristics.tBERS;
 	return SUCCESS;
 }
 
@@ -2635,7 +2642,7 @@ int uninterrupt_gc_super_soft(struct ssd_info *ssd,unsigned int channel,unsigned
 					free(location);
 					location=NULL;
 				}	
-	}
+		}
 	// page_move执行完之后不立即进行擦除
 	ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].fast_erase = FALSE;
 	ssd->channel_head[channel].current_state=CHANNEL_GC;
@@ -2662,7 +2669,7 @@ int uninterrupt_gc_super_soft(struct ssd_info *ssd,unsigned int channel,unsigned
 		// ssd->channel_head[channel].next_state_predict_time=ssd->current_time+page_move_count* (7*ssd->parameter->time_characteristics.tWC+ssd->parameter->time_characteristics.tR+7*ssd->parameter->time_characteristics.tWC+ssd->parameter->time_characteristics.tPROG)+transfer_size*SECTOR*(ssd->parameter->time_characteristics.tWC+ssd->parameter->time_characteristics.tRC);
 		// ssd->channel_head[channel].chip_head[chip].next_state_predict_time=ssd->channel_head[channel].next_state_predict_time+ssd->parameter->time_characteristics.tBERS;	
 		ssd->channel_head[channel].next_state_predict_time=ssd->current_time+page_move_count* (7*ssd->parameter->time_characteristics.tWC+ssd->parameter->time_characteristics.tR)+transfer_size*SECTOR*ssd->parameter->time_characteristics.tRC;
-		ssd->channel_head[channel].chip_head[chip].next_state_predict_time=ssd->channel_head[channel].next_state_predict_time;	
+		ssd->channel_head[channel].chip_head[chip].next_state_predict_time = ssd->channel_head[channel].next_state_predict_time;	
 	}
 	return 1;
 }
@@ -3109,7 +3116,7 @@ Status gc_for_channel(struct ssd_info *ssd, unsigned int channel)
 			// flag_gc=uninterrupt_gc(ssd,channel,chip,die,plane);  
 			// flag_gc=uninterrupt_gc_super(ssd,channel,chip,die,plane,block);    /*当一个完整的gc操作完成时（已经擦除一个块，回收了一定数量的flash空间），返回1，将channel上相应的gc操作请求节点删除*/
 			flag_gc=uninterrupt_gc_super_soft(ssd,channel,chip,die,plane,block); //不擦除
-
+			// ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].fast_erase = FALSE;
 			// 将小块的page_move标志位置为1，代表被page_move了
 			ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].SB_gc_flag = 1;
 			ssd->superblock[block+(chip*ssd->parameter->block_plane)].gc_count++;	
@@ -3120,7 +3127,7 @@ Status gc_for_channel(struct ssd_info *ssd, unsigned int channel)
 				for(int i=0; i<ssd->parameter->channel_number; i++){
 					// ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].fast_erase = TRUE;
 					ssd->channel_head[i].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].SB_gc_flag = 0;
-					erase_operation(ssd, i, chip, die, plane, block);
+					erase_operation(ssd, i, chip, die, plane, block);  
 				}
 			}
 

@@ -204,6 +204,11 @@ struct ssd_info *initiation(struct ssd_info *ssd)
 	printf("11111\n");
 	strncpy(ssd->statisticfilename,tracename,30);
 	strcat(ssd->statisticfilename,".dat");
+	char full_path[256] = "./result/";
+	strcat(full_path, ssd->statisticfilename);
+
+	// 将完整路径复制给 ssd->statisticfilename
+	strcpy(ssd->statisticfilename, full_path);
 
 	ssd->statisticfile=fopen(ssd->statisticfilename,"w");
 	if(ssd->statisticfile==NULL)
