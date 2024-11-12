@@ -1147,7 +1147,7 @@ void trace_output(struct ssd_info* ssd){
 				ssd->completed_request_count++;
 				if(ssd->completed_request_count%10000 == 0){
 					printf("completed requests: %d, max_queue_depth: %d, ", ssd->completed_request_count, ssd->max_queue_depth);
-					printf("free_lsb: %d, free_csb: %d, free_msb: %d\n", ssd->free_lsb_count, ssd->free_csb_count, ssd->free_msb_count);
+					printf("free_lsb: %d, gc_time:%d, gc_request:%d\n", ssd->free_lsb_count, ssd->fast_gc_count, ssd->gc_request);
 					ssd->max_queue_depth = 0;
 					statistic_output_easy(ssd, ssd->completed_request_count);
 					ssd->newest_read_avg = 0;
