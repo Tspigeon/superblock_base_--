@@ -667,6 +667,7 @@ struct gc_operation{
 	unsigned int page;            //该参数只在可中断的gc函数中使用（gc_interrupt），用来记录已经完成的数据迁移的页号
 	unsigned int state;           //记录当前gc请求的状态
 	unsigned int priority;        //记录该gc操作的优先级，1表示不可中断，0表示可中断（软阈值产生的gc请求）
+	unsigned int type;			  //gc节点类型，0是软阈值，1是硬阈值
 	struct gc_operation *next_node;
 };//该结构体记录被触发的垃圾回收请求，成员是需要进行垃圾回收的一层一层的地址
 
