@@ -369,6 +369,7 @@ struct superblock_info{
     unsigned int invalid_page_count;
 	unsigned int gc_count; // 记录已经gc的block的数量
 	unsigned int superblock_erase; //超级块的擦除次数
+	unsigned int is_softSB_inQue;  //判断软阈值块有没有被放入队列，放入的不能被软阈值选中
 };
 
 
