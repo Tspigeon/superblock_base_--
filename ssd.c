@@ -65,7 +65,7 @@ int  main(int argc, char* argv[])
 	
 	pre_process_page(ssd); //2.预处理 
 	// full_block(ssd);
-	// full_valid(ssd);
+	full_valid(ssd);
 	// get_old_zwh(ssd);
 	printf("free_lsb: %d, free_csb: %d, free_msb: %d\n", ssd->free_lsb_count, ssd->free_csb_count, ssd->free_msb_count);
 	printf("Total request num: %lld.\n", ssd->total_request_num);
