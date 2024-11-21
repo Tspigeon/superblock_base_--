@@ -1247,9 +1247,9 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
                 // 因为传的是超级块号，所以得返回没有gc的块号
                 blk_number = ssd->superblock[blk_id].super_blk_loc[i].blk;
                 // 判断这个块有没有被page_move
-                if(ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[blk_number].SB_gc_flag == 1)
+                if(ssd->channel_head[i].chip_head[chip].die_head[die].plane_head[plane].blk_head[blk_number].SB_gc_flag == 1)
                 {
-                    printf("find %d already gc and %d\n", blk_number, ssd->superblock[blk_number+(chip*ssd->parameter->block_plane)].gc_count);
+//                    printf("find %d already gc and %d\n", blk_number, ssd->superblock[blk_number+(chip*ssd->parameter->block_plane)].gc_count);
                     continue;
                 }
                 gc_node=(struct gc_operation *)malloc(sizeof(struct gc_operation));
@@ -1268,13 +1268,13 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
 
                 // 删除之前放入的gc节点
                 struct gc_operation *gc_pre=NULL;
-                if(ssd->channel_head[channel].gc_command != NULL){
-                    gc_pre=ssd->channel_head[channel].gc_command;
+                if(ssd->channel_head[i].gc_command != NULL){
+                    gc_pre=ssd->channel_head[i].gc_command;
                     while (gc_pre->next_node!=NULL)
                     {
-                        if (gc_pre->next_node==gc_node)
+                        if ((gc_pre->next_node->chip == chip) && (gc_pre->next_node->block == block))
                         {
-                            gc_pre->next_node=gc_node->next_node;
+                            gc_pre->next_node=gc_pre->next_node->next_node;
                             break;
                         }
                         gc_pre=gc_pre->next_node;
@@ -1345,11 +1345,11 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
                     ssd->channel_head[i].gc_command_tail = gc_node;
                 }
                 ssd->gc_request++;
-                // if(ssd->channel_head[i].chip_head[chip].die_head[die].plane_head[plane].blk_head[gc_change_block].free_page_num > 0 )
-                // {
-                // 	printf("---------------\n");
-                // 	while (1){}
-                // }
+                 if(ssd->channel_head[i].chip_head[chip].die_head[die].plane_head[plane].blk_head[gc_change_block].free_page_num > 0 )
+                 {
+                 	printf("soft---------------\n");
+                 	while (1){}
+                 }
             }
         }
     }
