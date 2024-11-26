@@ -1270,15 +1270,26 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
                 struct gc_operation *gc_pre=NULL;
                 if(ssd->channel_head[i].gc_command != NULL){
                     gc_pre=ssd->channel_head[i].gc_command;
-                    while (gc_pre->next_node!=NULL)
-                    {
-                        if ((gc_pre->next_node->chip == chip) && (gc_pre->next_node->block == block))
-                        {
-                            gc_pre->next_node=gc_pre->next_node->next_node;
-                            break;
+                    if(gc_pre->chip == chip && gc_pre->block == blk_number){ //第一个节点就是要删除的
+                        if(gc_pre->next_node == NULL){  //最后一个节点
+                           ssd->channel_head[i].gc_command = ssd->channel_head[i].gc_command_tail = NULL; 
+                        }else{  //不是最后一个节点
+                            ssd->channel_head[i].gc_command = gc_pre->next_node;
                         }
-                        gc_pre=gc_pre->next_node;
+                        ssd->gc_request--;
+                    }else{
+                        while (gc_pre->next_node!=NULL)
+                        {
+                            if ((gc_pre->next_node->chip == chip) && (gc_pre->next_node->block == blk_number))
+                            {
+                                gc_pre->next_node=gc_pre->next_node->next_node;
+                                break;
+                            }
+                            gc_pre=gc_pre->next_node;
+                        }
+                        ssd->gc_request--; 
                     }
+
                 }
 
                 //第一个插入的
