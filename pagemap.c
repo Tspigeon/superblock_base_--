@@ -1228,13 +1228,12 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
     ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_block].page_head[page].free_state=((~(sub->state))&full_page);
     ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_block].page_head[page].written_count++;
     ssd->write_flash_count++;
-
+    
     if (ssd->parameter->active_write==0)  /*如果没有主动策略，只采用gc_hard_threshold，并且无法中断GC过程*/
     {
         // 硬阈值
         if (ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].free_page<(ssd->parameter->page_block*ssd->parameter->block_plane*ssd->parameter->gc_hard_threshold))  //如果plane中的free_page有效页的数目少于gc_hard_threshold所设定的阈值就产生gc操作
         {
-            ssd->hard_count++;
             int blk_id = -1;
             // 原函数为选出无效页最多的块，现在要选出已经被gc最多的块
             if (get_GC_count_max(ssd, channel, chip, die, plane, &blk_id) == ERROR) {
@@ -1265,6 +1264,7 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
                 gc_node->state=GC_WAIT;
                 gc_node->priority=GC_UNINTERRUPT;
                 gc_node->type=1; //1为硬阈值
+                ssd->hard_count++; //硬阈值统计值++
 
                 // 删除之前放入的gc节点
                 struct gc_operation *gc_pre=NULL;
@@ -1542,6 +1542,7 @@ Status blk_Inqueue(struct ssd_info *ssd, int channel, int chip, int die, int pla
             // 判断冷热
             // if(ssd->superblock[i].superblock_erase < 20){
             // 选择block, 防止重复被选中
+            // 准备加入一个lru链表，判断冷热
             invalid_page = superblock_invalid_page_num;
             block = i;
         }

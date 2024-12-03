@@ -163,6 +163,13 @@ struct ssd_info *initiation(struct ssd_info *ssd)
 	ssd->sub_request_all = 0;
 	ssd->hard_count = 0; // 初始化硬阈值统计
 	ssd->cold_choose = 0; // 初始化冷块选择统计
+	// // 初始化lru链表
+	// LRUCache* cache = (LRUCache*)malloc(sizeof(LRUCache));
+	// cache->capacity = 20;
+	// cache->size = 0;
+	// cache->head = NULL;
+	// cache->tail = NULL;
+
 	for(i=0;i<10;i++){
 		ssd->last_ten_write_lat[i]=0;
 		}
@@ -200,6 +207,9 @@ struct ssd_info *initiation(struct ssd_info *ssd)
 	
 	strcat(tracename,"x");
 	strcat(tracename,ssd->run_trace_times);
+	char buffer_th[20]; // 用于存储 float 转换后的字符串
+	sprintf(buffer_th, "%.3f", ssd->parameter->gc_threshold); // 将 float 转为字符串，保留两位小数
+	strcat(tracename, buffer_th); // 拼接 tracename 和 buffer
 	printf("%s",tracename);
 	printf("11111\n");
 	strncpy(ssd->statisticfilename,tracename,30);
