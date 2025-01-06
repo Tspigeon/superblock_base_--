@@ -296,21 +296,20 @@ struct ssd_info{
 	int hard_count; //进入硬阈值的次数
 	int cold_choose; // 冷块被选中的次数
 	// 定义 LRU 缓存
-	typedef struct LRUCache {
-		int capacity;          // 缓存容量
-		int size;              // 当前缓存大小
-		Node* head;            // 头指针
-		Node* tail;            // 尾指针
-	} LRUCache;
+	// 冷热判断的LRU 定义链表节点
+	int Lrucapacity;          // 缓存容量
+	int Lrusize;              // 当前缓存大小
+	struct CacheNode* Lruhead;            // 头指针
+	struct CacheNode* Lrutail;            // 尾指针
 };//主要成员：①指向channel②指向dram③current_time系统当前时间④request_queue请求队列队首指针⑤request_tail请求队列队尾指针⑥统计：统计一些信息，如闪存写入次数，读取次数，外部请求到达个数
-
-// 冷热判断的LRU 定义链表节点
-typedef struct Node {
-    int chip;               // 缓存键
-    int channel;
-	int block;             
-    struct Node* next;     // 指向下一个节点
-} Node;
+	
+struct CacheNode {
+	// int chip;               // 缓存键
+	// int channel;
+	// int block;
+	int superblockID;	// 存储超级块号             
+	struct CacheNode* next;     // 指向下一个节点
+};
 
 struct channel_info{
 	int chip;                            //表示在该总线上有多少颗粒（chip数吗 好像是的）

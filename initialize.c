@@ -163,12 +163,11 @@ struct ssd_info *initiation(struct ssd_info *ssd)
 	ssd->sub_request_all = 0;
 	ssd->hard_count = 0; // 初始化硬阈值统计
 	ssd->cold_choose = 0; // 初始化冷块选择统计
-	// // 初始化lru链表
-	// LRUCache* cache = (LRUCache*)malloc(sizeof(LRUCache));
-	// cache->capacity = 20;
-	// cache->size = 0;
-	// cache->head = NULL;
-	// cache->tail = NULL;
+	// 初始化lru链表
+	ssd->Lruhead = NULL;
+	ssd->Lrutail = NULL;
+	ssd->Lrucapacity = 20;
+	ssd->Lrusize = 0;
 
 	for(i=0;i<10;i++){
 		ssd->last_ten_write_lat[i]=0;
