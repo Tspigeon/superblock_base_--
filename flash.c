@@ -1027,6 +1027,9 @@ Status  find_active_block(struct ssd_info *ssd,unsigned int channel,unsigned int
 	ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].active_block=active_block;
 	if(count<ssd->parameter->block_plane)
 	{
+		if(ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[active_block].SB_gc_flag == 1){
+			printf("%d has been choose to pagemove.\n",active_block);
+		}
 		return SUCCESS;
 	}
 	else

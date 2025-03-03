@@ -1493,6 +1493,9 @@ void statistic_output(struct ssd_info *ssd)
 	fprintf(ssd->statisticfile,"erase: %13d\n",erase);
 	fprintf(ssd->statisticfile,"enter hard_th count: %d\n", ssd->hard_count);
 	fprintf(ssd->statisticfile,"soft_threshold cold count: %d\n", ssd->cold_choose);
+	fprintf(ssd->statisticfile,"pagemove block count is : %d\n", ssd->pagemove_block_count);
+	fprintf(ssd->statisticfile,"sum write truely: %d, and pagemove write: %d\n", ssd->write_req_True, ssd->pagemove_write);
+	fprintf(ssd->statisticfile,"hard th is : %d and soft th is : %d\n", ssd->hard_th_freepg/ssd->hard_count, ssd->soft_th_freepg/ssd->cold_choose);
 	// fprintf(ssd->statisticfile,"sub_request_all: %13d, sub_request_success: %13d\n", ssd->sub_request_all, ssd->sub_request_success);
 	fflush(ssd->statisticfile);
 

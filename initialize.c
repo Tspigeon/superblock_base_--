@@ -168,6 +168,7 @@ struct ssd_info *initiation(struct ssd_info *ssd)
 	ssd->Lrutail = NULL;
 	ssd->Lrucapacity = 20;
 	ssd->Lrusize = 0;
+	ssd->data_window = ssd->parameter->block_plane*ssd->parameter->page_block*(ssd->parameter->gc_threshold-ssd->parameter->gc_hard_threshold);
 
 	for(i=0;i<10;i++){
 		ssd->last_ten_write_lat[i]=0;

@@ -1043,8 +1043,7 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
     unsigned int old_state=0,state=0,copy_subpage=0;
     struct local *location;
     struct direct_erase *direct_erase_node,*new_direct_erase;
-    struct gc_operation *gc_node;
-    struct CacheNode *lru_node;    
+    struct gc_operation *gc_node;    
 
     unsigned int i=0,j=0,k=0,l=0,m=0,n=0;
 
@@ -1161,9 +1160,11 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
         }
         ssd->dram->map->map_entry[lpn].pn=find_ppn(ssd,channel,chip,die,plane,block,page);  //找到一个空闲页获得ppn，并更新映射表
         ssd->dram->map->map_entry[lpn].state=sub->state;
+        ssd->write_req_True++;
     }
     else      //此时有映射关系，就说明对这个逻辑页进行了更新，需要将原来的页置为失效
     {
+        ssd->write_req_True++;
         ppn=ssd->dram->map->map_entry[lpn].pn;
         location=find_location(ssd,ppn);
         if(	ssd->channel_head[location->channel].chip_head[location->chip].die_head[location->die].plane_head[location->plane].blk_head[location->block].page_head[location->page].lpn!=lpn)
@@ -1179,67 +1180,71 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
         ssd->superblock[location->block+(location->chip*ssd->parameter->block_plane)].invalid_page_count++;
         // 并将SB加入lru列表
         // 创建节点
-        lru_node=(struct CacheNode *)malloc(sizeof(struct CacheNode));
-        alloc_assert(lru_node,"lru_node");
-        memset(lru_node,0, sizeof(struct CacheNode));
-        lru_node->superblockID = (location->block)+(location->chip*ssd->parameter->block_plane);
-        lru_node->next = NULL;
-        if(ssd->Lruhead == NULL){   // 第一个插入
-            ssd->Lrutail = ssd->Lruhead = lru_node;
-            ssd->Lrusize++;
-        }else if(ssd->Lrucapacity > ssd->Lrusize){     //lru未满，直接添加 尾插
-            struct CacheNode *pre_lruNode = ssd->Lruhead;
-            if(ssd->Lruhead->superblockID == lru_node->superblockID){   // 头节点就是
-                ssd->Lruhead = ssd->Lruhead->next;
-            }else{  // 头节点不是，跳过头处理
-                while(pre_lruNode->next != NULL){
-                    if(pre_lruNode->next->superblockID == lru_node->superblockID){    // 有重复的SBblkID
-                        // 当前的下一个重复了，删除下一个
-                        pre_lruNode->next = pre_lruNode->next->next;
-                        ssd->Lrusize--;
-                        if(pre_lruNode->next == NULL){
-                            // 迁移tail指针
-                            ssd->Lrutail = pre_lruNode;
-                        }
-                        break;
-                    }
-                    pre_lruNode=pre_lruNode->next;
-                }
-            }
-            ssd->Lrutail->next = lru_node;
-            ssd->Lrutail = lru_node;
-            ssd->Lrusize++;
+        // lru_node=(struct CacheNode *)malloc(sizeof(struct CacheNode));
+        // alloc_assert(lru_node,"lru_node");
+        // memset(lru_node,0, sizeof(struct CacheNode));
+        // lru_node->superblockID = (location->block)+(location->chip*ssd->parameter->block_plane);
+        // lru_node->next = NULL;
+        // if(ssd->Lruhead == NULL){   // 第一个插入
+        //     ssd->Lrutail = ssd->Lruhead = lru_node;
+        //     ssd->Lrusize++;
+        // }else if(ssd->Lrucapacity > ssd->Lrusize){     //lru未满，直接添加 尾插
+        //     struct CacheNode *pre_lruNode = ssd->Lruhead;
+        //     if(ssd->Lruhead->superblockID == lru_node->superblockID){   // 头节点就是
+        //         ssd->Lruhead = ssd->Lruhead->next;
+        //     }else{  // 头节点不是，跳过头处理
+        //         while(pre_lruNode->next != NULL){
+        //             if(pre_lruNode->next->superblockID == lru_node->superblockID){    // 有重复的SBblkID
+        //                 // 当前的下一个重复了，删除下一个
+        //                 pre_lruNode->next = pre_lruNode->next->next;
+        //                 ssd->Lrusize--;
+        //                 if(pre_lruNode->next == NULL){
+        //                     // 迁移tail指针
+        //                     ssd->Lrutail = pre_lruNode;
+        //                 }
+        //                 break;
+        //             }
+        //             pre_lruNode=pre_lruNode->next;
+        //         }
+        //     }
+        //     ssd->Lrutail->next = lru_node;
+        //     ssd->Lrutail = lru_node;
+        //     ssd->Lrusize++;
 
-        }else if(ssd->Lrucapacity <= ssd->Lrusize){
-            int is_rep = 0;
-            struct CacheNode *pre_lruNode = ssd->Lruhead;
-            if(ssd->Lruhead->superblockID == lru_node->superblockID){   // 头节点就是
-                ssd->Lruhead = ssd->Lruhead->next;
-                is_rep = 1;
-            }else{  // 头节点不是，跳过头处理
-                while(pre_lruNode->next != NULL){
-                    if(pre_lruNode->next->superblockID == lru_node->superblockID){    // 有重复的SBblkID
-                        // 当前的下一个重复了，删除下一个
-                        pre_lruNode->next = pre_lruNode->next->next;
-                        is_rep = 1;
-                        if(pre_lruNode->next == NULL){
-                            // 迁移tail指针
-                            ssd->Lrutail = pre_lruNode;
-                        }
-                        break;
-                    }
-                    pre_lruNode=pre_lruNode->next;
-                }
-            }
-            //lru满了，先头出再尾插
-            if(is_rep == 0){    //且没有重复
-                struct CacheNode *temp = ssd->Lruhead;
-                ssd->Lruhead = temp->next;
-                free(temp);
-            }
-            ssd->Lrutail->next = lru_node;
-            ssd->Lrutail = lru_node;
+        // }else if(ssd->Lrucapacity <= ssd->Lrusize){
+        //     int is_rep = 0;
+        //     struct CacheNode *pre_lruNode = ssd->Lruhead;
+        //     if(ssd->Lruhead->superblockID == lru_node->superblockID){   // 头节点就是
+        //         ssd->Lruhead = ssd->Lruhead->next;
+        //         is_rep = 1;
+        //     }else{  // 头节点不是，跳过头处理
+        //         while(pre_lruNode->next != NULL){
+        //             if(pre_lruNode->next->superblockID == lru_node->superblockID){    // 有重复的SBblkID
+        //                 // 当前的下一个重复了，删除下一个
+        //                 pre_lruNode->next = pre_lruNode->next->next;
+        //                 is_rep = 1;
+        //                 if(pre_lruNode->next == NULL){
+        //                     // 迁移tail指针
+        //                     ssd->Lrutail = pre_lruNode;
+        //                 }
+        //                 break;
+        //             }
+        //             pre_lruNode=pre_lruNode->next;
+        //         }
+        //     }
+        //     //lru满了，先头出再尾插
+        //     if(is_rep == 0){    //且没有重复
+        //         struct CacheNode *temp = ssd->Lruhead;
+        //         ssd->Lruhead = temp->next;
+        //         free(temp);
+        //     }
+        //     ssd->Lrutail->next = lru_node;
+        //     ssd->Lrutail = lru_node;
 
+        // }
+
+        if(LRU_Insert(ssd, location->chip, location->block) == FALSE){
+            printf("ERROR in LRU Insert. chip is %d, block is %d", location->chip, location->block);
         }
 
         if((location->page)%3==0){
@@ -1299,6 +1304,7 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
         // 硬阈值
         if (ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].free_page<(ssd->parameter->page_block*ssd->parameter->block_plane*ssd->parameter->gc_hard_threshold))  //如果plane中的free_page有效页的数目少于gc_hard_threshold所设定的阈值就产生gc操作
         {
+            ssd->hard_th_freepg = ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].free_page + ssd->hard_th_freepg;
             int blk_id = -1;
             // 原函数为选出无效页最多的块，现在要选出已经被gc最多的块
             if (get_GC_count_max(ssd, channel, chip, die, plane, &blk_id) == ERROR) {
@@ -1383,6 +1389,7 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
         // 如果硬阈值没有满足，则测试软阈值
         if (ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].free_page<(ssd->parameter->page_block*ssd->parameter->block_plane*ssd->parameter->gc_threshold) && ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].free_page>(ssd->parameter->page_block*ssd->parameter->block_plane*ssd->parameter->gc_hard_threshold) && (ssd->gc_request < 1024))  //如果plane中的free_page有效页的数目少于gc_threshold所设定的阈值就产生gc操作
         {
+            ssd->soft_th_freepg = ssd->soft_th_freepg+ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].free_page;
             int blk_id = -1;
             if (blk_Inqueue(ssd, channel, chip, die, plane, &blk_id) == ERROR) {
                 // printf("Error: no blk for blkInqueue\n");
@@ -1392,6 +1399,7 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
             // 说明有软阈值块
             // 将软阈值块标志位置1
             ssd->superblock[blk_id].is_softSB_inQue = 1;
+            ssd->cold_choose++;
             for(int i = 0;i < ssd->parameter->channel_number;i++)
             {
                 int gc_change_block = -1;
@@ -1418,6 +1426,29 @@ struct ssd_info *get_ppn(struct ssd_info *ssd,unsigned int channel,unsigned int 
                 gc_node->state=GC_WAIT;
                 gc_node->priority=GC_UNINTERRUPT;
                 gc_node->type = 0; //0代表软
+
+
+                //在软阈值处加入空闲条件判断
+                // unsigned int current_state = 0, next_state = 0;
+                // long long next_state_predict_time = 0;
+                // current_state=ssd->channel_head[i].chip_head[gc_node->chip].current_state;
+                // next_state=ssd->channel_head[i].chip_head[gc_node->chip].next_state;
+                // next_state_predict_time=ssd->channel_head[i].chip_head[gc_node->chip].next_state_predict_time;
+                // if((ssd->gc_request < 16))
+                //     {
+                //         ssd->superblock[blk_id].is_softSB_inQue = 1;
+                //         // 软阈值这里进行尾插
+                //         if(ssd->channel_head[i].gc_command == NULL || ssd->channel_head[i].gc_command_tail == NULL){
+                //             ssd->channel_head[i].gc_command = gc_node;
+                //             ssd->channel_head[i].gc_command_tail = gc_node;
+                //         }else{
+                //             ssd->channel_head[i].gc_command_tail->next_node = gc_node;
+                //             ssd->channel_head[i].gc_command_tail = gc_node;
+                //         }
+                //         ssd->gc_request++;
+                //     }
+                //end  
+
                 // 软阈值这里进行尾插
                 if(ssd->channel_head[i].gc_command == NULL || ssd->channel_head[i].gc_command_tail == NULL){
                     ssd->channel_head[i].gc_command = gc_node;
@@ -1644,6 +1675,78 @@ Status blk_Inqueue(struct ssd_info *ssd, int channel, int chip, int die, int pla
         return ERROR;
     }
     return SUCCESS;
+}
+
+// LRU管理函数,insert
+Status LRU_Insert(struct ssd_info *ssd, unsigned int chip, unsigned int block){
+        struct CacheNode *lru_node;
+        // 并将SB加入lru列表
+        // 创建节点
+        lru_node=(struct CacheNode *)malloc(sizeof(struct CacheNode));
+        alloc_assert(lru_node,"lru_node");
+        memset(lru_node,0, sizeof(struct CacheNode));
+        lru_node->superblockID = (block)+(chip*ssd->parameter->block_plane);
+        lru_node->next = NULL;
+        if(ssd->Lruhead == NULL){   // 第一个插入
+            ssd->Lrutail = ssd->Lruhead = lru_node;
+            ssd->Lrusize++;
+            return TRUE;
+        }else if(ssd->Lrucapacity > ssd->Lrusize){     //lru未满，直接添加 尾插
+            struct CacheNode *pre_lruNode = ssd->Lruhead;
+            if(ssd->Lruhead->superblockID == lru_node->superblockID){   // 头节点就是
+                ssd->Lruhead = ssd->Lruhead->next;
+            }else{  // 头节点不是，跳过头处理
+                while(pre_lruNode->next != NULL){
+                    if(pre_lruNode->next->superblockID == lru_node->superblockID){    // 有重复的SBblkID
+                        // 当前的下一个重复了，删除下一个
+                        pre_lruNode->next = pre_lruNode->next->next;
+                        ssd->Lrusize--;
+                        if(pre_lruNode->next == NULL){
+                            // 迁移tail指针
+                            ssd->Lrutail = pre_lruNode;
+                        }
+                        break;
+                    }
+                    pre_lruNode=pre_lruNode->next;
+                }
+            }
+            ssd->Lrutail->next = lru_node;
+            ssd->Lrutail = lru_node;
+            ssd->Lrusize++;
+            return TRUE;
+        }else if(ssd->Lrucapacity <= ssd->Lrusize){
+            int is_rep = 0;
+            struct CacheNode *pre_lruNode = ssd->Lruhead;
+            if(ssd->Lruhead->superblockID == lru_node->superblockID){   // 头节点就是
+                ssd->Lruhead = ssd->Lruhead->next;
+                is_rep = 1;
+            }else{  // 头节点不是，跳过头处理
+                while(pre_lruNode->next != NULL){
+                    if(pre_lruNode->next->superblockID == lru_node->superblockID){    // 有重复的SBblkID
+                        // 当前的下一个重复了，删除下一个
+                        pre_lruNode->next = pre_lruNode->next->next;
+                        is_rep = 1;
+                        if(pre_lruNode->next == NULL){
+                            // 迁移tail指针
+                            ssd->Lrutail = pre_lruNode;
+                        }
+                        break;
+                    }
+                    pre_lruNode=pre_lruNode->next;
+                }
+            }
+            //lru满了，先头出再尾插
+            if(is_rep == 0){    //且没有重复
+                struct CacheNode *temp = ssd->Lruhead;
+                ssd->Lruhead = temp->next;
+                free(temp);
+            }
+            ssd->Lrutail->next = lru_node;
+            ssd->Lrutail = lru_node;
+            return TRUE;
+        }else{  //都没有进入循环，返回失败
+            return FALSE;
+        }
 }
 
 
@@ -2387,6 +2490,7 @@ Status move_page(struct ssd_info * ssd, struct local *location, unsigned int * t
     free_state=ssd->channel_head[location->channel].chip_head[location->chip].die_head[location->die].plane_head[location->plane].blk_head[location->block].page_head[location->page].free_state;
     old_ppn=find_ppn(ssd,location->channel,location->chip,location->die,location->plane,location->block,location->page);      /*记录这个有效移动页的ppn，对比map或者额外映射关系中的ppn，进行删除和添加操作*/
     // old_location = find_location(ssd,old_ppn);
+    ssd->pagemove_write++;
 
 
     sub = (struct sub_request*)malloc(sizeof(struct sub_request));     /*申请一个子请求sub的空间*/
@@ -2774,9 +2878,9 @@ int uninterrupt_gc_super_soft(struct ssd_info *ssd,unsigned int channel,unsigned
     ssd->channel_head[channel].current_state=CHANNEL_GC;
     ssd->channel_head[channel].current_time=ssd->current_time;
     ssd->channel_head[channel].next_state=CHANNEL_IDLE;
-    // ssd->channel_head[channel].chip_head[chip].current_state=CHIP_ERASE_BUSY;
+    ssd->channel_head[channel].chip_head[chip].current_state=CHIP_ERASE_BUSY;
     // ssd->channel_head[channel].chip_head[chip].current_time=ssd->current_time;
-    // ssd->channel_head[channel].chip_head[chip].next_state=CHIP_IDLE;
+    ssd->channel_head[channel].chip_head[chip].next_state=CHIP_IDLE;
     /***************************************************************
     *在可执行COPYBACK高级命令与不可执行COPYBACK高级命令这两种情况下，
     *channel下个状态时间的计算，以及chip下个状态时间的计算
@@ -3193,7 +3297,7 @@ Status gc_for_channel(struct ssd_info *ssd, unsigned int channel)
         {
             if (gc_node->priority==GC_UNINTERRUPT)   /*这个gc请求是不可中断的，优先服务这个gc操作*/
             {
-                ssd->cold_choose++;
+                // ssd->cold_choose++;
                 flag_priority=1;
                 break;
             }
@@ -3211,7 +3315,7 @@ Status gc_for_channel(struct ssd_info *ssd, unsigned int channel)
             /**********************************************
             *需要gc操作的目标chip是空闲的，才可以进行gc操作
             ***********************************************/
-            if((gc_node->type == 0) && ((current_state==CHIP_IDLE) || ((next_state==CHIP_IDLE)&&(next_state_predict_time<=ssd->current_time))) && (ssd->max_queue_depth < 16))
+            if((gc_node->type == 0) && ((current_state==CHIP_IDLE) || ((next_state==CHIP_IDLE)&&(next_state_predict_time<=ssd->current_time))) && (ssd->max_queue_depth < 16))  //
             {
                 ssd->cold_choose++;
                 break;
@@ -3242,6 +3346,7 @@ Status gc_for_channel(struct ssd_info *ssd, unsigned int channel)
         // if((ssd->channel_head[channel].current_state==CHANNEL_IDLE)||(ssd->channel_head[channel].next_state == CHANNEL_IDLE && ssd->channel_head[channel].next_state_predict_time<=ssd->current_time)){
         // flag_direct_erase=gc_direct_erase(ssd,channel,chip,die,plane);
         /*当一个完整的gc操作完成时（已经擦除一个块，回收了一定数量的flash空间），返回1，将channel上相应的gc操作请求节点删除*/
+        ssd->pagemove_block_count++;
         flag_gc=uninterrupt_gc_super_soft(ssd,channel,chip,die,plane,block); //不擦除
         // ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].fast_erase = FALSE;
         // 将小块的page_move标志位置为1，代表被page_move了
@@ -3253,9 +3358,9 @@ Status gc_for_channel(struct ssd_info *ssd, unsigned int channel)
             ssd->superblock[block+(chip*ssd->parameter->block_plane)].is_softSB_inQue = 0;
             // 然后一起擦除
             for(int i=0; i<ssd->parameter->channel_number; i++){
-                ssd->channel_head[i].chip_head[chip].current_state=CHIP_ERASE_BUSY;
+                // ssd->channel_head[i].chip_head[chip].current_state=CHIP_ERASE_BUSY;
                 ssd->channel_head[i].chip_head[chip].current_time=ssd->current_time;
-                ssd->channel_head[i].chip_head[chip].next_state=CHIP_IDLE;
+                // ssd->channel_head[i].chip_head[chip].next_state=CHIP_IDLE;
                 // ssd->channel_head[channel].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].fast_erase = TRUE;
                 ssd->channel_head[i].chip_head[chip].die_head[die].plane_head[plane].blk_head[block].SB_gc_flag = 0;
                 ssd->channel_head[i].chip_head[chip].next_state_predict_time = ssd->channel_head[i].next_state_predict_time + ssd->parameter->time_characteristics.tBERS;

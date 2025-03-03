@@ -301,6 +301,13 @@ struct ssd_info{
 	int Lrusize;              // 当前缓存大小
 	struct CacheNode* Lruhead;            // 头指针
 	struct CacheNode* Lrutail;            // 尾指针
+
+	int pagemove_block_count;	// 进入pagemove的块的个数
+	int write_req_True;	//真正写下去的数目
+	int pagemove_write;
+	int hard_th_freepg;
+	int soft_th_freepg;
+	int data_window;	//收集数据的窗口
 };//主要成员：①指向channel②指向dram③current_time系统当前时间④request_queue请求队列队首指针⑤request_tail请求队列队尾指针⑥统计：统计一些信息，如闪存写入次数，读取次数，外部请求到达个数
 	
 struct CacheNode {
@@ -383,6 +390,8 @@ struct superblock_info{
 	unsigned int gc_count; // 记录已经gc的block的数量
 	unsigned int superblock_erase; //超级块的擦除次数
 	unsigned int is_softSB_inQue;  //判断软阈值块有没有被放入队列，放入的不能被软阈值选中
+	int64_t last_update_time;	//上次更新时间
+	int64_t Avg_update_time;	//平均更新时间间隔
 };
 
 
